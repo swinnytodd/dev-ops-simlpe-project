@@ -1,0 +1,185 @@
+---
+- name: "Install Wordpress in nginx server"
+  become: yes
+  hosts: webserver
+  vars:
+    wp_url: "https://wordpress.org/latest.tar.gz"
+  vars_files:
+    - db.vars
+    - vnginx.vars
+  tasks:
+    - name: "Update apt repo and cache"
+      apt:
+        force_apt_get: yes
+        update_cache: yes
+        upgrade: true
+        cache_valid_time: 86400
+
+    - name: "Install dependencies for PHP 8"
+      apt:
+        name:
+          - software-properties-common
+          - apt-transport-https
+          - ca-certificates
+          - lsb-release
+        update_cache: true
+    - name: "Add latest PHP repository from PPA"
+      apt_repository:
+        repo: ppa:ondrej/php
+
+    - name: "Update apt repo and cache again and apt upgrade"
+      apt:
+        force_apt_get: yes
+        update_cache: yes
+        upgrade: true
+        cache_valid_time: 86400
+      
+    - name: "Install Nginx and PHP dependencies for WordPress"
+      apt:
+        name: 
+          - nginx
+          - php-fpm
+          - php-common
+          - php-mbstring
+          - php-xmlrpc
+          - php-soap
+          - php-gd
+          - php-xml
+          - php-intl
+          - php-mysql
+          - php-cli
+          - php-ldap
+          - php-zip
+          - php-curl
+        state: present
+        update_cache: true
+
+    - name: "Install PHP 8.1"
+      apt:
+        name: 
+          - php8.1
+          - php8.1-fpm
+          - php8.1-cli
+        state: present
+        update_cache: true
+    - name: "Create virtual host for {{ domain }}"
+      template:
+        src: vhost_default.conf.j2
+        dest: /etc/nginx/sites-enabled/{{ domain }}
+        mode: '0644'
+        owner: "{{ user }}"
+        group: "{{ user }}"
+
+    - name: "Create document root for {{ domain }}"
+      file:
+        path: /var/www/{{ domain }}
+        state: directory
+        mode: '0775'
+        owner: "{{ user }}"
+        group: "{{ user }}"
+
+    - name: "Copy Test web files test.html and test.php "
+      copy: 
+        src: "{{ item }}"
+        dest: "/var/www/{{ domain }}"
+        owner: "{{ user }}"
+        group: "{{ user }}"
+      with_items:
+        - test.php
+        - test.html
+
+    - name: "restart/enable nginx"
+      service:
+        name: nginx
+        state: restarted
+        enabled: true
+
+    - name: "Install MariaDB server and python3-pip in ubuntu"
+      apt: 
+        name: 
+          - mariadb-server
+          - python3-pip
+        state: present
+        update_cache: true
+
+    - name: Install PyMySQL python package
+      pip:
+        name: PyMySQL
+        state: present
+    - name: "Unmask Mariadb"
+      systemd:
+        name: mariadb
+        masked: no
+    - name: "Restart/Enable MariaDB server in ubuntu"
+      service:
+        name: mariadb
+        enabled: true
+        state: restarted
+
+    - name: "Set Root Password"
+      ignore_errors: true
+      mysql_user:
+        login_user: root
+        login_password: ''
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: "root"
+        password: "{{ mysql_root_pw }}"
+        host_all: true
+    - name: "Delete Anonymous mysql users"
+      mysql_user:
+        login_user: "root"
+        login_password: "{{ mysql_root_pw }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: ''
+        state: absent
+        host_all: true
+
+    - name: "Create WordPress DB {{ mysql_DB }}"
+      mysql_db: 
+        login_user: "root"
+        login_password: "{{ mysql_root_pw }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: "{{ mysql_DB }}"
+        state: present
+    - name: "Create WordPress User {{ mysql_user }}"
+      mysql_user: 
+        login_user: "root"
+        login_password: "{{ mysql_root_pw }}"
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+        name: "{{ mysql_user }}"
+        host: "%"
+        password: "{{ mysql_pw }}"
+        priv: "{{ mysql_DB }}.*:ALL"
+
+    - name: "Download WordPress latest to /tmp/wordpress.tar.gz"
+      get_url:
+        url: "{{ wp_url }}"
+        dest: /tmp/wordpress.tar.gz
+    
+    - name: "Extract WordPress contents"
+      unarchive:
+        src: /tmp/wordpress.tar.gz
+        dest: /tmp/
+        remote_src: true
+      
+    - name: "Place WordPress Site Files to Document root /var/www/{{ domain }}"
+      copy:
+        src: /tmp/wordpress/
+        dest: "/var/www/{{ domain }}"
+        remote_src: true
+        owner: "{{ user }}"
+        group: "{{ user }}"
+
+    - name: "WordPress configure wp-congig.php"
+      template:
+        src: wp-config.php.j2
+        dest: "/var/www/{{ domain }}/wp-config.php"
+        owner: "{{ user }}"
+        group: "{{ user }}"
+    
+    - name: "Override default PHP values in .user.ini for {{ domain }}"
+      copy:
+        src: .user.ini
+        dest: "/var/www/{{ domain }}/.user.ini"
+        owner: "{{ user }}"
+        group: "{{ user }}"

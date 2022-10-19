@@ -1,0 +1,6 @@
+*.tfstate
+*aws_key.pem
+*terraform.tfstate.backup
+*.gitignore.swp
+*.terraform.lock.hcl
+/.terraform

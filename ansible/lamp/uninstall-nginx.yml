@@ -1,0 +1,13 @@
+---
+- hosts: webserver
+  tasks:
+    - name: "Uninstall NginX"
+      apt:
+        name: nginx
+        state: absent
+        autoremove: yes
+
+    - name: "Stop Nginx Services"
+      service:
+        name: nginx
+        state: stopped
