@@ -14,7 +14,7 @@ provider "aws" {
 }
 resource "aws_instance" "ec2_example" {
 
-    count = 3
+    count = 2
     ami = "ami-096800910c1b781ba"  
     instance_type = "t2.micro" 
     key_name= "aws_key"
