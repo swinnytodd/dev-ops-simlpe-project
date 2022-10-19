@@ -15,13 +15,14 @@ provider "aws" {
 resource "aws_instance" "ec2_example" {
 
     count = 2
+    
     ami = "ami-096800910c1b781ba"  
     instance_type = "t2.micro" 
     key_name= "aws_key"
     vpc_security_group_ids = [aws_security_group.my_webserver.id]
     
     tags = {
-        Name = "jenkins_test"
+        Name = "simple_webserver"
     }
 
 }
